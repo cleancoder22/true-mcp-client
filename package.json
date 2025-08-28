@@ -1,0 +1,23 @@
+{
+  "name": "true-mcp-client",
+  "version": "0.0.0",
+  "description": "A SolidJS MCP client application with Tailwind CSS",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.6"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.12",
+    "solid-js": "^1.9.5",
+    "tailwindcss": "^4.1.12"
+  }
+}
