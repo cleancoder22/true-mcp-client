@@ -16,6 +16,7 @@
     "vite-plugin-solid": "^2.11.6"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
     "@tailwindcss/vite": "^4.1.12",
     "solid-js": "^1.9.5",
     "tailwindcss": "^4.1.12"
