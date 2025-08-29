@@ -22,7 +22,21 @@ let tablesCacheTimestamp: number = 0;
 
 // Determine MCP server type based on tool name
 export function getServerInfo(toolName: string): { badge: string; color: string } {
-  // GitHub tools pattern
+  // Notion tools (API- prefix)
+  const notionTools = [
+    'API-create-a-comment', 'API-create-a-database', 'API-delete-a-block', 'API-get-block-children',
+    'API-get-self', 'API-get-user', 'API-get-users', 'API-patch-block-children', 'API-patch-page',
+    'API-post-database-query', 'API-post-page', 'API-post-search', 'API-retrieve-a-block',
+    'API-retrieve-a-comment', 'API-retrieve-a-database', 'API-retrieve-a-page',
+    'API-retrieve-a-page-property', 'API-update-a-block', 'API-update-a-database'
+  ];
+
+  // SQLite tools
+  const sqliteTools = [
+    'append_insight', 'create_table', 'describe_table', 'list_tables', 'read_query', 'write_query'
+  ];
+
+  // GitHub tools
   const githubTools = [
     'add_comment_to_pending_review', 'add_issue_comment', 'add_sub_issue', 'assign_copilot_to_issue',
     'cancel_workflow_run', 'create_and_submit_pull_request_review', 'create_branch', 'create_gist',
@@ -30,17 +44,15 @@ export function getServerInfo(toolName: string): { badge: string; color: string 
     'create_repository', 'delete_file', 'delete_pending_pull_request_review', 'delete_workflow_run_logs',
     'dismiss_notification', 'download_workflow_run_artifact', 'fork_repository', 'get_code_scanning_alert',
     'get_commit', 'get_dependabot_alert', 'get_discussion', 'get_discussion_comments', 'get_file_contents',
-    'get_global_security_advisory', 'get_issue', 'get_issue_comments', 'get_job_logs', 'get_latest_release',
-    'get_me', 'get_notification_details', 'get_pull_request', 'get_pull_request_comments', 'get_pull_request_diff',
+    'get_issue', 'get_issue_comments', 'get_job_logs', 'get_latest_release', 'get_me',
+    'get_notification_details', 'get_pull_request', 'get_pull_request_comments', 'get_pull_request_diff',
     'get_pull_request_files', 'get_pull_request_reviews', 'get_pull_request_status', 'get_release_by_tag',
-    'get_secret_scanning_alert', 'get_tag', 'get_team_members', 'get_teams', 'get_workflow_run',
-    'get_workflow_run_logs', 'get_workflow_run_usage', 'list_branches', 'list_code_scanning_alerts',
-    'list_commits', 'list_dependabot_alerts', 'list_discussion_categories', 'list_discussions',
-    'list_gists', 'list_global_security_advisories', 'list_issue_types', 'list_issues',
-    'list_notifications', 'list_org_repository_security_advisories', 'list_pull_requests',
-    'list_releases', 'list_repository_security_advisories', 'list_secret_scanning_alerts',
-    'list_sub_issues', 'list_tags', 'list_workflow_jobs', 'list_workflow_run_artifacts',
-    'list_workflow_runs', 'list_workflows', 'manage_notification_subscription', 
+    'get_secret_scanning_alert', 'get_tag', 'get_team_members', 'get_teams', 'get_workflow_run', 'get_workflow_run_logs',
+    'get_workflow_run_usage', 'list_branches', 'list_code_scanning_alerts', 'list_commits',
+    'list_dependabot_alerts', 'list_discussion_categories', 'list_discussions', 'list_gists',
+    'list_issue_types', 'list_issues', 'list_notifications', 'list_pull_requests', 'list_releases',
+    'list_secret_scanning_alerts', 'list_sub_issues', 'list_tags', 'list_workflow_jobs',
+    'list_workflow_run_artifacts', 'list_workflow_runs', 'list_workflows', 'manage_notification_subscription',
     'manage_repository_notification_subscription', 'mark_all_notifications_read', 'merge_pull_request',
     'push_files', 'remove_sub_issue', 'reprioritize_sub_issue', 'request_copilot_review',
     'rerun_failed_jobs', 'rerun_workflow_run', 'run_workflow', 'search_code', 'search_issues',
@@ -48,14 +60,19 @@ export function getServerInfo(toolName: string): { badge: string; color: string 
     'submit_pending_pull_request_review', 'update_gist', 'update_issue', 'update_pull_request',
     'update_pull_request_branch'
   ];
-  
-  // Filesystem tools pattern
+
+  // Filesystem tools
   const filesystemTools = [
     'create_directory', 'directory_tree', 'edit_file', 'get_file_info', 'list_allowed_directories',
     'list_directory', 'move_file', 'read_file', 'read_multiple_files', 'search_files', 'write_file'
   ];
-  
-  if (githubTools.includes(toolName)) {
+
+  // Check tool patterns in order of specificity
+  if (notionTools.includes(toolName)) {
+    return { badge: 'notion', color: '#000000' };
+  } else if (sqliteTools.includes(toolName)) {
+    return { badge: 'sqlite', color: '#003B57' };
+  } else if (githubTools.includes(toolName)) {
     return { badge: 'github', color: '#24292e' };
   } else if (filesystemTools.includes(toolName)) {
     return { badge: 'filesystem', color: '#0366d6' };
@@ -100,8 +117,7 @@ async function getAllFilesRecursively(dirPath: string, maxDepth: number = 3, cur
             type: 'file',
             path: fullPath,
             icon: isDirectory ? '📁' : getFileIcon(name),
-            serverBadge: 'filesystem',
-            serverColor: '#0366d6'
+            // No serverBadge for files to reduce clutter
           });
           
           // Recursively get subdirectory contents
@@ -453,10 +469,20 @@ export const filterItems = (items: AutocompleteItem[], query: string): Autocompl
   const lowerQuery = query.toLowerCase();
   
   // Remove trigger prefix for tools
-  const searchTerm = query.replace(/^#tools\s*/, '').toLowerCase();
+  let searchTerm = query.replace(/^#tools?\s*:?\s*/, '').toLowerCase();
   
-  if (!searchTerm) {
-    return items;
+  // Check for server-specific filtering (e.g., "github:", "notion:", "sqlite:")
+  let serverFilter = '';
+  let toolFilter = '';
+  
+  if (searchTerm.includes(':')) {
+    const parts = searchTerm.split(':');
+    if (parts.length >= 2) {
+      serverFilter = parts[0].trim();
+      toolFilter = parts.slice(1).join(':').trim();
+    }
+  } else {
+    toolFilter = searchTerm;
   }
   
   return items.filter(item => {
@@ -464,13 +490,34 @@ export const filterItems = (items: AutocompleteItem[], query: string): Autocompl
     const description = item.description?.toLowerCase() || '';
     const serverBadge = item.serverBadge?.toLowerCase() || '';
     
+    // If server filter is specified, only show tools from that server
+    if (serverFilter) {
+      const serverMatches = serverBadge === serverFilter ||
+                           (serverFilter === 'github' && serverBadge === 'github') ||
+                           (serverFilter === 'notion' && serverBadge === 'notion') ||
+                           (serverFilter === 'sqlite' && serverBadge === 'sqlite') ||
+                           (serverFilter === 'filesystem' && serverBadge === 'filesystem') ||
+                           (serverFilter === 'mcp' && serverBadge === 'mcp');
+      
+      if (!serverMatches) {
+        return false;
+      }
+      
+      // If no tool filter after server filter, show all tools from that server
+      if (!toolFilter) {
+        return true;
+      }
+    }
+    
+    // Filter by tool name or description
+    if (toolFilter) {
+      return label.includes(toolFilter) ||
+             description.includes(toolFilter);
+    }
+    
+    // Fallback: general search across all fields
     return label.includes(searchTerm) ||
            description.includes(searchTerm) ||
-           serverBadge.includes(searchTerm) ||
-           // Support filtering by server type
-           (searchTerm === 'tools' && item.type === 'tool') ||
-           (searchTerm === 'github' && serverBadge === 'github') ||
-           (searchTerm === 'filesystem' && serverBadge === 'filesystem') ||
-           (searchTerm === 'mcp' && serverBadge === 'mcp');
+           serverBadge.includes(searchTerm);
   });
 };

@@ -32,9 +32,9 @@ const RichTextDisplay: Component<RichTextDisplayProps> = (props) => {
             return (
               <span class={`inline-flex items-center gap-1 mx-0.5 px-2 py-0.5 rounded-md text-xs ${
                 props.isUser
-                  ? 'bg-white/20 text-white' 
-                  : `${themeClasses().bg.primary} text-white shadow-sm`
-              } font-medium cursor-default hover:scale-105 transition-transform whitespace-nowrap align-middle`}>
+                  ? `bg-white/20 ${themeClasses().text.primary}` 
+                  : themeClasses().button.primary
+              } font-medium cursor-default hover:scale-105 transition-transform whitespace-nowrap align-middle shadow-sm`}>
                 <span class="text-xs leading-none">{segment.contextItem.icon}</span>
                 <span class="font-semibold">{segment.contextItem.label}</span>
                 {segment.contextItem.serverBadge && (

@@ -134,15 +134,12 @@ const ChatInput: Component<ChatInputProps> = (props) => {
           setSelectedIndex(0);
           setShowAutocomplete(true);
           
-          // Calculate position for dropdown
+          // Calculate position for dropdown - position it directly above the textarea
           if (textareaRef) {
             const rect = textareaRef.getBoundingClientRect();
-            const spaceAbove = rect.top;
-            const spaceBelow = window.innerHeight - rect.bottom;
-            const dropdownHeight = 256;
             
             setAutocompletePosition({
-              top: spaceAbove > dropdownHeight ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
+              top: rect.top, // Position at the top of textarea
               left: rect.left
             });
           }
@@ -391,6 +388,7 @@ const ChatInput: Component<ChatInputProps> = (props) => {
         selectedIndex={selectedIndex()}
         onSelect={insertAutocompleteItem}
         onClose={() => setShowAutocomplete(false)}
+        onSelectedIndexChange={setSelectedIndex}
         position={autocompletePosition()}
       />
 
