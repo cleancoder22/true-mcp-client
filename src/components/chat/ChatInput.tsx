@@ -6,9 +6,11 @@ import RichTextDisplay from '../ui/RichTextDisplay';
 import {
   getAvailableFiles,
   getAvailableTools,
+  getAvailableTables,
   parseAutocompleteContext,
   filterItems,
   filterFiles,
+  filterTables,
   getServerInfo,
   type AutocompleteItem
 } from '../../services/autocompleteService';
@@ -37,14 +39,16 @@ const ChatInput: Component<ChatInputProps> = (props) => {
   // Cache for autocomplete items (VS Code-like behavior)
   const [filesCache, setFilesCache] = createSignal<AutocompleteItem[]>([]);
   const [toolsCache, setToolsCache] = createSignal<AutocompleteItem[]>([]);
+  const [tablesCache, setTablesCache] = createSignal<AutocompleteItem[]>([]);
   const [filesCacheLoaded, setFilesCacheLoaded] = createSignal(false);
   const [toolsCacheLoaded, setToolsCacheLoaded] = createSignal(false);
+  const [tablesCacheLoaded, setTablesCacheLoaded] = createSignal(false);
   
   // Selected items state (VS Code-like pills)
   const [selectedItems, setSelectedItems] = createSignal<Array<{
     id: string;
     label: string;
-    type: 'file' | 'tool';
+    type: 'file' | 'tool' | 'table';
     icon: string;
     serverBadge?: string;
     serverColor?: string;
@@ -90,7 +94,7 @@ const ChatInput: Component<ChatInputProps> = (props) => {
           const filteredItems = filterFiles(allItems, context.query);
           setAutocompleteItems(filteredItems);
           
-        } else {
+        } else if (context.trigger === 'tool') {
           // Tools - also use caching
           if (!toolsCacheLoaded()) {
             console.log('🔄 Loading all tools (first time)...');
@@ -105,6 +109,23 @@ const ChatInput: Component<ChatInputProps> = (props) => {
           
           // Filter locally
           const filteredItems = filterItems(allItems, context.query);
+          setAutocompleteItems(filteredItems);
+          
+        } else if (context.trigger === 'db') {
+          // Database tables - also use caching
+          if (!tablesCacheLoaded()) {
+            console.log('🔄 Loading all tables (first time)...');
+            const tables = await getAvailableTables();
+            setTablesCache(tables);
+            setTablesCacheLoaded(true);
+            allItems = tables;
+          } else {
+            console.log('⚡ Using cached tables, filtering locally...');
+            allItems = tablesCache();
+          }
+          
+          // Filter locally
+          const filteredItems = filterTables(allItems, context.query);
           setAutocompleteItems(filteredItems);
         }
         

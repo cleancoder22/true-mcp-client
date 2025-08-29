@@ -4,7 +4,7 @@ export interface AutocompleteItem {
   id: string;
   label: string;
   description?: string;
-  type: 'file' | 'tool' | 'command' | 'error';
+  type: 'file' | 'tool' | 'command' | 'error' | 'table';
   path?: string;
   icon?: string;
   serverBadge?: string;
@@ -15,6 +15,10 @@ export interface AutocompleteItem {
 let filesCache: AutocompleteItem[] | null = null;
 let filesCacheTimestamp: number = 0;
 const CACHE_DURATION = 30000; // 30 seconds
+
+// Cache for database tables
+let tablesCache: AutocompleteItem[] | null = null;
+let tablesCacheTimestamp: number = 0;
 
 // Determine MCP server type based on tool name
 export function getServerInfo(toolName: string): { badge: string; color: string } {
@@ -186,6 +190,71 @@ export async function getAvailableFiles(forceRefresh: boolean = false): Promise<
   }
 }
 
+// Get available database tables from SQLite MCP server (with caching)
+export async function getAvailableTables(forceRefresh: boolean = false): Promise<AutocompleteItem[]> {
+  // Return cached results if available and not expired
+  const now = Date.now();
+  if (!forceRefresh && tablesCache && (now - tablesCacheTimestamp) < CACHE_DURATION) {
+    console.log('🗃️ Returning cached tables');
+    return tablesCache;
+  }
+
+  try {
+    console.log('🗃️ Fetching tables from SQLite database...');
+    
+    const tablesResult = await callMcpTool('list_tables', {});
+    
+    if (tablesResult?.result?.content?.[0]?.text) {
+      const tablesText = tablesResult.result.content[0].text;
+      console.log('Tables result:', tablesText);
+      
+      // Parse the table names from the result
+      const lines = tablesText.split('\n').filter((line: string) => line.trim());
+      const tables: AutocompleteItem[] = [];
+      
+      for (const line of lines) {
+        // Skip headers and empty lines
+        if (line.includes('Table Name') || line.includes('---') || !line.trim()) {
+          continue;
+        }
+        
+        const tableName = line.trim();
+        if (tableName) {
+          tables.push({
+            id: `table-${tableName}`,
+            label: tableName,
+            description: `Database table: ${tableName}`,
+            type: 'table',
+            icon: '🗃️',
+            serverBadge: 'sqlite',
+            serverColor: '#003B57'
+          });
+        }
+      }
+      
+      // Cache the results
+      tablesCache = tables;
+      tablesCacheTimestamp = now;
+      
+      console.log(`🗃️ Found ${tables.length} tables`);
+      return tables;
+    }
+  } catch (error) {
+    console.error('Error fetching tables:', error);
+    return [{
+      id: 'db-error',
+      label: 'Error fetching tables',
+      description: 'Could not connect to SQLite database',
+      type: 'error',
+      icon: '⚠️',
+      serverBadge: 'sqlite',
+      serverColor: '#dc3545'
+    }];
+  }
+  
+  return [];
+}
+
 // Filter files based on search query (for local filtering)
 export function filterFiles(files: AutocompleteItem[], query: string): AutocompleteItem[] {
   if (!query || query === '#files') {
@@ -215,6 +284,28 @@ export function filterFiles(files: AutocompleteItem[], query: string): Autocompl
            (searchTerm === 'folders' && label.endsWith('/'));
   });
 }
+
+// Filter tables based on query
+export const filterTables = (tables: AutocompleteItem[], query: string): AutocompleteItem[] => {
+  if (!query || query === '#db') {
+    return tables;
+  }
+  
+  // Remove '#db' prefix and any spaces
+  const searchTerm = query.replace(/^#db\s*/, '').toLowerCase();
+  
+  if (!searchTerm) {
+    return tables;
+  }
+  
+  return tables.filter(table => {
+    const label = table.label.toLowerCase();
+    const description = table.description?.toLowerCase() || '';
+    
+    return label.includes(searchTerm) || 
+           description.includes(searchTerm);
+  });
+};
 
 // Get available tools from MCP server
 export const getAvailableTools = async (): Promise<AutocompleteItem[]> => {
@@ -281,7 +372,7 @@ const getFileIcon = (fileName: string): string => {
 
 // Parse autocomplete trigger from text
 export const parseAutocompleteContext = (text: string, cursorPosition: number): {
-  trigger: 'file' | 'tool' | null;
+  trigger: 'file' | 'tool' | 'db' | null;
   query: string;
   startPos: number;
 } => {
@@ -318,6 +409,9 @@ export const parseAutocompleteContext = (text: string, cursorPosition: number): 
   } else if (afterHash.startsWith('tool:')) {
     const query = afterHash.substring(5); // Get query after 'tool:'
     return { trigger: 'tool', query, startPos: lastHashIndex };
+  } else if (afterHash.startsWith('db:')) {
+    const query = afterHash.substring(3); // Get query after 'db:'
+    return { trigger: 'db', query, startPos: lastHashIndex };
   } else if (afterHash.startsWith('files')) {
     const query = `#files${afterHash.substring(5)}`; // Include the full trigger + query
     return { trigger: 'file', query, startPos: lastHashIndex };
@@ -330,15 +424,20 @@ export const parseAutocompleteContext = (text: string, cursorPosition: number): 
   } else if (afterHash.startsWith('tool')) {
     const query = `#tool${afterHash.substring(4)}`; // Include the full trigger + query
     return { trigger: 'tool', query, startPos: lastHashIndex };
+  } else if (afterHash.startsWith('db')) {
+    const query = `#db${afterHash.substring(2)}`; // Include the full trigger + query
+    return { trigger: 'db', query, startPos: lastHashIndex };
   }
   
   // Check if we're still typing the trigger
   if ('files'.startsWith(afterHash) || 'file'.startsWith(afterHash) || 
-      'tools'.startsWith(afterHash) || 'tool'.startsWith(afterHash)) {
+      'tools'.startsWith(afterHash) || 'tool'.startsWith(afterHash) ||
+      'db'.startsWith(afterHash)) {
     return { 
       trigger: afterHash.length > 0 ? 
         (afterHash.startsWith('f') ? 'file' : 
-         afterHash.startsWith('t') ? 'tool' : null) : null, 
+         afterHash.startsWith('t') ? 'tool' :
+         afterHash.startsWith('d') ? 'db' : null) : null, 
       query: `#${afterHash}`, 
       startPos: lastHashIndex 
     };

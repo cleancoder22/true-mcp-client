@@ -3,7 +3,7 @@ import { getServerInfo } from '../services/autocompleteService';
 export interface ContextItem {
   id: string;
   label: string;
-  type: 'file' | 'tool';
+  type: 'file' | 'tool' | 'table';
   icon: string;
   serverBadge?: string;
   serverColor?: string;
@@ -23,14 +23,14 @@ export interface ParsedMessage {
 
 /**
  * Parse a message to extract context items and create renderable segments
- * Handles patterns like: "Please use #tool:create_file for #file:package.json to update dependencies"
+ * Handles patterns like: "Please use #tool:create_file for #file:package.json and #db:users table"
  */
 export function parseMessageContext(message: string): ParsedMessage {
   const contextItems: ContextItem[] = [];
   const segments: MessageSegment[] = [];
   
-  // Regex to match #file:filename or #tool:toolname patterns
-  const contextRegex = /#(file|tool):([^\s]+)/g;
+  // Regex to match #file:filename, #tool:toolname, or #db:tablename patterns
+  const contextRegex = /#(file|tool|db):([^\s]+)/g;
   
   let lastIndex = 0;
   let match;
@@ -56,12 +56,24 @@ export function parseMessageContext(message: string): ParsedMessage {
     if (!foundItems.has(itemId)) {
       foundItems.add(itemId);
       
-      const serverInfo = getServerInfo(label);
+      let serverInfo;
+      let icon: string;
+      
+      if (type === 'db') {
+        // Database table
+        serverInfo = { badge: 'sqlite', color: '#003B57' };
+        icon = '🗃️';
+      } else {
+        // File or tool
+        serverInfo = getServerInfo(label);
+        icon = type === 'file' ? '📄' : '🔧';
+      }
+      
       contextItem = {
         id: itemId,
         label,
-        type: type as 'file' | 'tool',
-        icon: type === 'file' ? '📄' : '🔧',
+        type: type as 'file' | 'tool' | 'table',
+        icon,
         serverBadge: serverInfo.badge,
         serverColor: serverInfo.color
       };
